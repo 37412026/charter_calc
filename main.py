@@ -1,22 +1,24 @@
 from fastapi import FastAPI
 import json
-import os
 
-app = FastAPI(title="Charter Calculator API")
+app = FastAPI(title="Aviation & Vehicle API")
 
-# Load airports data
-DATA_PATH = os.path.join("data", "airports.json")
-
-with open(DATA_PATH, "r", encoding="utf-8") as f:
-    airports = json.load(f)
-
+# Health check endpoint
 @app.get("/")
 def home():
     return {"status": "API running successfully"}
 
+# Airport lookup endpoint
 @app.get("/airport")
 def get_airport(iata: str):
-    iata = iata.upper()
-    if iata in airports:
-        return airports[iata]
+    try:
+        with open("data/airports.json", "r") as f:
+            airports = json.load(f)
+    except FileNotFoundError:
+        return {"error": "airports.json not found"}
+    
+    for airport in airports:
+        if airport["iata"].upper() == iata.upper():
+            return airport
+    
     return {"error": "Airport not found"}
