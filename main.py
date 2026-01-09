@@ -1,55 +1,53 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 import json
-import os
 
-app = FastAPI(title="Aviation & Vehicle API")
+app = FastAPI(title="Charter Airports API")
 
-AIRPORTS = {}
-DATA_FILE = os.path.join("data", "airports.json")
+# Enable CORS so WordPress site can access the API
+origins = ["*"]  # In production, replace * with your WordPress domain
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Load airports safely at startup
+# Load airports JSON once at startup
 try:
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            AIRPORTS = json.load(f)
-except Exception as e:
-    AIRPORTS = {}
-    print("ERROR loading airports:", e)
+    with open("data/airports.json", "r", encoding="utf-8") as f:
+        airports_data = json.load(f)
+except FileNotFoundError:
+    airports_data = {}
+    print("airports.json not found!")
 
 @app.get("/")
-from fastapi import FastAPI, HTTPException
-import json
-import os
-
-app = FastAPI()
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "data", "airports.json")
-
-# Load airports safely
-try:
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
-        AIRPORTS = json.load(f)
-except Exception as e:
-    AIRPORTS = {}
-    print("Failed to load airports:", e)
-
-
-@app.get("/")
-def root():
+def home():
     return {"status": "API running successfully"}
 
-
+# --- Search airports by letters (autocomplete) ---
 @app.get("/airport")
-def get_airport(iata: str):
-    if not iata:
-        raise HTTPException(status_code=400, detail="IATA code is required")
+def search_airports(search: str = Query(..., min_length=1), iata: str = None):
+    results = []
 
-    iata = iata.upper()
+    if iata:  # If IATA code is provided, return exact airport
+        for airport in airports_data.values():
+            if airport["iata"].upper() == iata.upper():
+                return airport
+        raise HTTPException(status_code=404, detail="Airport not found")
 
-    for airport in AIRPORTS.values():
-        if airport.get("iata", "").upper() == iata:
-            return airport
+    # Otherwise, search by letters in IATA or city or name
+    search_lower = search.lower()
+    for airport in airports_data.values():
+        if (airport["iata"].lower().startswith(search_lower) or
+            airport["name"].lower().startswith(search_lower) or
+            airport["city"].lower().startswith(search_lower)):
+            results.append({
+                "iata": airport["iata"],
+                "name": airport["name"],
+                "city": airport["city"]
+            })
+        if len(results) >= 10:  # Limit suggestions
+            break
 
-    raise HTTPException(status_code=404, detail="Airport not found")
-
+    return results
