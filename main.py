@@ -17,43 +17,39 @@ except Exception as e:
     print("ERROR loading airports:", e)
 
 @app.get("/")
-def home():
-    return {
-        "status": "API running successfully",
-        "airports_loaded": len(AIRPORTS)
-    }
+from fastapi import FastAPI, HTTPException
+import json
+import os
+
+app = FastAPI()
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "data", "airports.json")
+
+# Load airports safely
+try:
+    with open(DATA_PATH, "r", encoding="utf-8") as f:
+        AIRPORTS = json.load(f)
+except Exception as e:
+    AIRPORTS = {}
+    print("Failed to load airports:", e)
+
+
+@app.get("/")
+def root():
+    return {"status": "API running successfully"}
+
 
 @app.get("/airport")
 def get_airport(iata: str):
-    try:
-        if not AIRPORTS:
-            return {"error": "Airport database not loaded"}
+    if not iata:
+        raise HTTPException(status_code=400, detail="IATA code is required")
 
-        for icao, airport in AIRPORTS.items():
+    iata = iata.upper()
 
-            # HARD SAFETY CHECKS
-            if not isinstance(airport, dict):
-                continue
+    for airport in AIRPORTS.values():
+        if airport.get("iata", "").upper() == iata:
+            return airport
 
-            airport_iata = airport.get("iata")
+    raise HTTPException(status_code=404, detail="Airport not found")
 
-            if airport_iata and airport_iata.upper() == iata.upper():
-                return {
-                    "icao": icao,
-                    "iata": airport_iata,
-                    "name": airport.get("name"),
-                    "city": airport.get("city"),
-                    "state": airport.get("state"),
-                    "country": airport.get("country"),
-                    "lat": airport.get("lat"),
-                    "lon": airport.get("lon")
-                }
-
-        return {"error": "Airport not found"}
-
-    except Exception as e:
-        # THIS PREVENTS INTERNAL SERVER ERROR
-        return {
-            "error": "Server error",
-            "details": str(e)
-        }
