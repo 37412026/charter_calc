@@ -51,3 +51,26 @@ def search_airports(search: str = Query(..., min_length=1), iata: str = None):
             break
 
     return results
+@app.get("/airports/search")
+def search_airports(q: str):
+    q = q.lower()
+    results = []
+
+    for airport in airports.values():
+        if (
+            (airport.get("iata") and q in airport["iata"].lower())
+            or q in airport["icao"].lower()
+            or q in airport["name"].lower()
+            or q in airport["city"].lower()
+        ):
+            results.append({
+                "icao": airport["icao"],
+                "iata": airport.get("iata", ""),
+                "name": airport["name"],
+                "city": airport["city"]
+            })
+
+        if len(results) >= 10:
+            break
+
+    return results
